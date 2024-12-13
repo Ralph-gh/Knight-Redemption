@@ -1,45 +1,38 @@
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(SpriteRenderer), typeof(Animator))]
-[RequireComponent(typeof(GroundCheck), typeof(Jump), typeof(Shoot))]
+[RequireComponent(typeof(GroundCheck))]
 public class PlayerController : MonoBehaviour
 {
     private bool isPaused;
     private int _lives;
 
-    public float dashSpeed = 15f; // Speed during dash
-    public float dashDuration = 0.2f; // Duration of the dash
-    public float dashCooldown = 1f; // Cooldown between dashes
-
+    private bool canDash = true;
     private bool isDashing = false;
-    private float dashCooldownTimer = 0f; //timer to track cooldown
-    public float dashForce = 24f;
-    public float direction;
-
-
-
+    private float dashingPower = 24f;
+    private float dashingTime = 0.2f;
+    private float dashingCooldown = 1f;
 
     public int lives
-
     {
         get => _lives;
         set
         {
-            //do valid checking
-            if (value > 0)
-            { //gameover should be called here
+            if (value <= 0)
+            {
+                // Game over logic
+                Debug.Log("Game Over");
             }
 
             if (_lives > value)
             {
-                //respawn
+                // Respawn logic
+                Debug.Log("Player lost a life.");
             }
 
             _lives = value;
-            Debug.Log($"{_lives} lives left");
+            Debug.Log($"Lives left: {_lives}");
         }
     }
 
@@ -49,28 +42,27 @@ public class PlayerController : MonoBehaviour
         get => _score;
         set
         {
-            //this can't happen - the score can't be lower than zero so stop this from setting the score
-            if (value > 0) return;
+            if (value < 0) return; // Prevent negative scores
 
             _score = value;
             Debug.Log($"Current Score: {_score}");
         }
     }
 
-    //Component References
-    Rigidbody2D rb;
-    SpriteRenderer sr;
-    Animator anim;
-    GroundCheck gc;
+    // Component References
+    private Rigidbody2D rb;
+    private SpriteRenderer sr;
+    private Animator anim;
+    private GroundCheck gc;
 
-    //Movement variables
+    // Movement variables
     [Range(3, 10)]
     public float speed = 5.5f;
     [Range(3, 10)]
     public float jumpForce = 3f;
 
     public bool isGrounded = false;
-    // Start is called before the first frame update
+
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
@@ -79,74 +71,51 @@ public class PlayerController : MonoBehaviour
         gc = GetComponent<GroundCheck>();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        // Skip input processing if the game is paused
-        if (PauseManager.IsGamePaused())
-        {
-            return;
-        }
+        if (PauseManager.IsGamePaused()) return; // Skip updates if the game is paused
 
-        AnimatorClipInfo[] curPlayingClips = anim.GetCurrentAnimatorClipInfo(0);
         CheckIsGrounded();
+        HandleMovement();
+        HandleDash();
+    }
+
+    private void HandleMovement()
+    {
+        if (isDashing) return; // Skip movement during dashing
+
         float hInput = Input.GetAxis("Horizontal");
+        rb.velocity = new Vector2(hInput * speed, rb.velocity.y);
 
-        if (curPlayingClips.Length > 0)
+        // Flip sprite based on movement direction
+        if (hInput != 0)
         {
-            if (!(curPlayingClips[0].clip.name == "Fire"))
-            {
-                rb.velocity = new Vector2(hInput * speed, rb.velocity.y);
-            }
-
+            sr.flipX = hInput < 0;
         }
-        // Skip input processing if the game is paused
-
-        //sprite flipping
-        if (hInput != 0) sr.flipX = (hInput < 0);
-
-        //inputs for firing and jump attack
-        if (Input.GetButtonDown("Fire1") && isGrounded) anim.SetTrigger("fire");
-        if (Input.GetButtonDown("Fire1") && !isGrounded) anim.SetTrigger("jumpAttack");
-        if (Input.GetButtonDown("Fire3"))
-        {
-            anim.SetTrigger("fire");
-
-
-        }
-
-
-        //alternate way to sprite flip
-        //if (hInput > 0 && sr.flipX || hInput < 0 && !sr.flipX) sr.flipX = !sr.flipX;
 
         anim.SetFloat("speed", Mathf.Abs(hInput));
         anim.SetBool("isGrounded", isGrounded);
-    }
-    private void HandleMovement()
-    {
-        // Skip regular movement during dash
-        if (isDashing) return;
 
-        float horizontalInput = Input.GetAxis("Horizontal");
-        rb.velocity = new Vector2(horizontalInput * speed, rb.velocity.y);
-
-        // Flip player sprite based on direction
-        if (horizontalInput != 0)
+        if (Input.GetButtonDown("Fire1") && isGrounded)
         {
-            transform.localScale = new Vector3(Mathf.Sign(horizontalInput) * Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
+            anim.SetTrigger("fire");
+        }
+        else if (Input.GetButtonDown("Fire1") && !isGrounded)
+        {
+            anim.SetTrigger("jumpAttack");
         }
 
-        anim.SetFloat("speed", Mathf.Abs(horizontalInput));
+        if (Input.GetButtonDown("Jump") && isGrounded)
+        {
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            isGrounded = false;
+            anim.SetTrigger("jump");
+        }
     }
 
     private void HandleDash()
     {
-        if (dashCooldownTimer > 0)
-        {
-            dashCooldownTimer -= Time.deltaTime;
-        }
-
-        if (Input.GetKeyDown(KeyCode.LeftShift) && dashCooldownTimer <= 0 && !isDashing)
+        if (Input.GetKeyDown(KeyCode.LeftShift) && canDash)
         {
             StartCoroutine(Dash());
         }
@@ -154,33 +123,27 @@ public class PlayerController : MonoBehaviour
 
     private IEnumerator Dash()
     {
+        canDash = false;
         isDashing = true;
-        dashCooldownTimer = dashCooldown;
+        float originalGravity = rb.gravityScale;
+        rb.gravityScale = 0;
 
-        // Trigger dash animation and fire attack
-        anim.SetTrigger("fire");
+        // Determine dash direction based on sprite orientation
+        float dashDirection = sr.flipX ? -1f : 1f;
+        rb.velocity = new Vector2(dashDirection * dashingPower, 0f);
 
-        // Apply a force in the direction the player is facing
-        float direction = transform.localScale.x; // 1 for right, -1 for left
-        rb.AddForce(new Vector2(direction * dashForce, 0), ForceMode2D.Impulse);
-
-        yield return new WaitForSeconds(dashDuration);
-
-        // End dash
+        yield return new WaitForSeconds(dashingTime);
         isDashing = false;
-    }
-    void CheckIsGrounded()
-    {
-        if (!isGrounded)
-        {
-            if (rb.velocity.y <= 0) isGrounded = gc.IsGrounded();
-        }
-        else isGrounded = gc.IsGrounded();
+        rb.gravityScale = originalGravity;
+
+        yield return new WaitForSeconds(dashingCooldown);
+        canDash = true;
     }
 
-    public void JumpPowerup()
+    private void CheckIsGrounded()
     {
-        StartCoroutine(GetComponent<Jump>().JumpHeightChange());
+        if (isDashing) return;
+        isGrounded = gc.IsGrounded();
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -190,5 +153,10 @@ public class PlayerController : MonoBehaviour
         {
             curPickup.Pickup(gameObject);
         }
+    }
+
+    public void JumpPowerup()
+    {
+        StartCoroutine(GetComponent<Jump>().JumpHeightChange());
     }
 }
