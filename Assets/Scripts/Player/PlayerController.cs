@@ -14,6 +14,10 @@ public class PlayerController : MonoBehaviour
     private float dashingTime = 0.2f;
     private float dashingCooldown = 1f;
 
+    AudioSource audioSource;
+    public AudioClip attackSound;
+    public AudioClip dashSound;
+
     public int lives
     {
         get => _lives;
@@ -69,6 +73,7 @@ public class PlayerController : MonoBehaviour
         sr = GetComponent<SpriteRenderer>();
         anim = GetComponent<Animator>();
         gc = GetComponent<GroundCheck>();
+        audioSource = GetComponent<AudioSource>();
     }
 
     void Update()
@@ -99,10 +104,13 @@ public class PlayerController : MonoBehaviour
         if (Input.GetButtonDown("Fire1") && isGrounded)
         {
             anim.SetTrigger("fire");
+            audioSource.PlayOneShot(attackSound);
+
         }
         else if (Input.GetButtonDown("Fire1") && !isGrounded)
         {
             anim.SetTrigger("jumpAttack");
+            audioSource.PlayOneShot(attackSound);
         }
 
         if (Input.GetButtonDown("Jump") && isGrounded)
@@ -131,6 +139,7 @@ public class PlayerController : MonoBehaviour
         // Determine dash direction based on sprite orientation
         float dashDirection = sr.flipX ? -1f : 1f;
         rb.velocity = new Vector2(dashDirection * dashingPower, 0f);
+        audioSource.PlayOneShot(dashSound);
 
         yield return new WaitForSeconds(dashingTime);
         isDashing = false;

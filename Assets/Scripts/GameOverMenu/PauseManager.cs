@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Audio;
 using UnityEngine.SceneManagement;
 
 public class PauseManager : MonoBehaviour
@@ -9,6 +10,10 @@ public class PauseManager : MonoBehaviour
 
     private static bool isPaused = false;
 
+    public AudioMixerGroup SFXGroup;
+    public AudioMixerGroup MusicGroup;
+    AudioSource audioSource;
+    public AudioClip buttonSound;
     public static bool IsGamePaused()
     {
         return isPaused;
@@ -48,6 +53,12 @@ public class PauseManager : MonoBehaviour
         {
             pauseMenu.SetActive(false); // Hide the pause menu
         }
+    }
+
+    public void playsound()
+    {
+        audioSource = GetComponent<AudioSource>();
+        audioSource.PlayOneShot(buttonSound);
     }
 
     public void QuitGame()

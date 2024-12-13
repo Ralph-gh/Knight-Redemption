@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor.Build.Content;
 using UnityEngine;
 
 //This script is fine for a smaller scope but it becomes harder to scale
@@ -15,12 +16,20 @@ public class Pickups : MonoBehaviour
         Telekenisis,
     }
 
+    public AudioClip pickupSound;
+
     public PickupType type;
+    AudioSource audioSource;
+    SpriteRenderer sr;
+
 
     // Start is called before the first frame update
     void Start()
     {
-        
+        sr = GetComponent<SpriteRenderer>();
+        audioSource = GetComponent<AudioSource>();
+
+        //audioSource.outputAudioMixerGroup = PauseManager.Instance.SFXGroup;
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
@@ -48,11 +57,14 @@ public class Pickups : MonoBehaviour
                     pc.score++;
                     break;
                 case PickupType.Telekenisis:
+                    
                     pc.score++;
                     break;
             }
-
-            Destroy(gameObject);
+            sr.enabled = false;
+            audioSource.PlayOneShot(pickupSound);
+            Destroy(gameObject,pickupSound.length);
+            
         }
     }
 }
