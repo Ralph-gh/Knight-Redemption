@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 [RequireComponent(typeof(Rigidbody2D), typeof(SpriteRenderer), typeof(Animator))]
 [RequireComponent(typeof(GroundCheck))]
@@ -7,16 +8,25 @@ public class PlayerController : MonoBehaviour
 {
     private bool isPaused;
     private int _lives;
+    public int hitpoints = 7; // Initial hitpoints
+    private PlayerRespawn playerRespawn;
+    private bool isFacingRight = true; // Track player's facing direction
 
     private bool canDash = true;
     private bool isDashing = false;
     private float dashingPower = 24f;
     private float dashingTime = 0.2f;
     private float dashingCooldown = 1f;
+    public bool playerCanTakeDamage=true;
+
+    public Transform damagePoint; // Assigned in the Inspector to point where the damage will happen
+    public float damageRadius = 1.2f; // Radius for detecting enemies
+    public LayerMask enemyLayer; // Define the enemy layer
 
     AudioSource audioSource;
     public AudioClip attackSound;
     public AudioClip dashSound;
+    
 
     public int lives
     {
@@ -74,6 +84,7 @@ public class PlayerController : MonoBehaviour
         anim = GetComponent<Animator>();
         gc = GetComponent<GroundCheck>();
         audioSource = GetComponent<AudioSource>();
+        playerRespawn = GetComponent<PlayerRespawn>();
     }
 
     void Update()
@@ -83,6 +94,8 @@ public class PlayerController : MonoBehaviour
         CheckIsGrounded();
         HandleMovement();
         HandleDash();
+        HandleMeleeAttack(); // Add this to the update loop
+        
     }
 
     private void HandleMovement()
@@ -93,9 +106,13 @@ public class PlayerController : MonoBehaviour
         rb.velocity = new Vector2(hInput * speed, rb.velocity.y);
 
         // Flip sprite based on movement direction
-        if (hInput != 0)
+        if (hInput > 0 && !isFacingRight)
         {
-            sr.flipX = hInput < 0;
+            FlipDirection();
+        }
+        else if (hInput < 0 && isFacingRight)
+        {
+            FlipDirection();
         }
 
         anim.SetFloat("speed", Mathf.Abs(hInput));
@@ -103,9 +120,7 @@ public class PlayerController : MonoBehaviour
 
         if (Input.GetButtonDown("Fire1") && isGrounded)
         {
-            anim.SetTrigger("fire");
             audioSource.PlayOneShot(attackSound);
-
         }
         else if (Input.GetButtonDown("Fire1") && !isGrounded)
         {
@@ -120,6 +135,22 @@ public class PlayerController : MonoBehaviour
             anim.SetTrigger("jump");
         }
     }
+    private void FlipDirection()
+    {
+        isFacingRight = !isFacingRight;
+
+        // Flip the sprite
+        sr.flipX = !sr.flipX;
+
+        // Flip the damagePoint position
+        if (damagePoint != null)
+        {
+            Vector3 localPosition = damagePoint.localPosition;
+            localPosition.x = -localPosition.x; // Flip the X position
+            damagePoint.localPosition = localPosition;
+        }
+    }
+
 
     private void HandleDash()
     {
@@ -128,6 +159,7 @@ public class PlayerController : MonoBehaviour
             StartCoroutine(Dash());
         }
     }
+
 
     private IEnumerator Dash()
     {
@@ -164,8 +196,67 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    /* private void OnCollisionEnter2D(Collision2D collision)
+    {
+        Idamage damage = collision.gameObject.GetComponent<Idamage>();
+        if (damage != null) { damage.TakeDamage(1); }
+    }*/
+
     public void JumpPowerup()
     {
         StartCoroutine(GetComponent<Jump>().JumpHeightChange());
     }
+    private void HandleMeleeAttack()
+    {
+        if (Input.GetButtonDown("Fire1")) // Assuming Fire2 is set up for melee attack
+        {
+            anim.SetTrigger("fire");
+            MeleeAttack();
+        }
+    }
+
+    private void MeleeAttack()
+    {
+        Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(damagePoint.position, damageRadius, enemyLayer);
+
+        foreach (Collider2D enemy in hitEnemies)
+        {
+            SkeletonEnemy skeleton = enemy.GetComponent<SkeletonEnemy>();
+            if (skeleton != null)
+            {
+                skeleton.TakeDamage();
+                
+            }
+        }
+    }
+
+    
+
+    // Method to handle damage
+    public void TakeDamage(int damage)
+    {
+        if (playerCanTakeDamage)
+        {
+            hitpoints -= damage; // Decrease hitpoints
+            Debug.Log($"Player took {damage} damage. Remaining hitpoints: {hitpoints}");
+        }
+
+        if (hitpoints <= 0)
+        {
+            Debug.Log("Player lost all hitpoints. Losing one life...");
+            playerRespawn.LoseLife(); // Delegate losing a life to PlayerRespawn
+            hitpoints = 7; // Reset hitpoints after losing a life
+        }
+    }
+
+   
+
+    private void OnDrawGizmosSelected()
+    {
+        if (damagePoint == null) return;
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(damagePoint.position, damageRadius);
+    }
+    
+    
 }

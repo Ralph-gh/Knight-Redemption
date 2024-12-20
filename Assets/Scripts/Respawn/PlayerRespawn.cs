@@ -12,8 +12,24 @@ public class PlayerRespawn : MonoBehaviour
         {
             RespawnOrGameOver();
         }
+        if (collision.CompareTag("CheckPoint1"))
+        {
+            SceneManager.LoadScene("TitleMenu");
+        }
     }
+    public void LoseLife()
+    {
+        lives--;
 
+        if (lives <= 0)
+        {
+            GameOver();
+        }
+        else
+        {
+            Respawn();
+        }
+    }
     private void RespawnOrGameOver()
     {
         lives--;
@@ -21,6 +37,7 @@ public class PlayerRespawn : MonoBehaviour
         if (lives <= 0)
         {
             GameOver();
+           
         }
         else
         {
